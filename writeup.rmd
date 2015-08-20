@@ -1,0 +1,59 @@
+---
+title: "Writeup"
+output: html_document
+---
+```{r,echo=FALSE}
+setwd("C:/Users/k10dayogi/Dropbox/Work/NHSS/2015 Summer Stuff/Coursera/Mach")
+```
+In order to keep the data reproducible, we require the "caret" package and set the seed.
+```{r,warning=FALSE,message=FALSE}
+library(caret)
+set.seed(1234)
+```
+We first bring in the training and test sets for the data.
+```{r}
+train<-read.csv("pml-training.csv")
+test<-read.csv("pml-testing.csv")
+```
+Since there are a number of columns with mostly NA or blank values, we first remove those from the analysis.
+```{r}
+#which columns are NA?
+n<-vector("numeric",ncol(train))
+for (i in 1:ncol(train)){
+    n[i]<-length(subset(train[,i],is.na(train[,i])==FALSE))/nrow(train)
+}
+#pull out all columns with NA
+n0<-which(n==1)
+tr<-train[,n0]
+```
+For the columns that are mostly blank, R tends to code them as "factor" columns (as opposed to "numeric"), so we remove those while keeping the output "classe" variable, which is coded as a factor.
+```{r}
+#which columns are mostly blank?
+m<-vector("character",ncol(tr))
+for (i in 1:ncol(tr)){
+    m[i]<-class(tr[,i])
+}
+#pull out the blank columns.
+m0<-which(m=="factor")
+m0<-m0[-length(m0)] #don't cut off the classe variable (coded as factor)
+tr<-tr[,-m0]
+```
+We generate the training and test sets using a simple partition of the training data.
+```{r}
+in.train<-createDataPartition(y=tr$classe,p=0.75,list=FALSE)
+tt<-tr[in.train,]
+nt<-tr[-in.train,]
+```
+Since there are mutliple levels of the "classe" variable, it seems reasonable to use a decision tree to determine which class each set of measurements belong to. Since we have already pruned the number of variables that we are predicting on, it is possible to simply predict the "classe" based on all of the other variables that are remaining. So we fit a model and produce the decision tree below.
+```{r,warning=FALSE,message=FALSE}
+library(rpart)
+fit<-rpart(classe~.,data=tt[,-1]) #the first column is an index
+plot(fit)
+text(fit)
+```
+<br/>Now we can test the fit against the held-out part of training set.
+```{r}
+predict(fit,newdata=nt,type="class")->predict
+confusionMatrix(data=predict,reference=nt$classe)
+```
+The accuracy is thus 83.6%, so the cross-validation estimates the out of sample error as 16.4%. So the model works reasonably well
